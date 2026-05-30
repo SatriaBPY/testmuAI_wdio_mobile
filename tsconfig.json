@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "target": "ESNext",
+    "module": "commonjs",
+    "lib": ["ESNext", "DOM"],
+    "types": ["node", "@wdio/globals", "webdriverio"],
+
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "paths": {
+      "@pages/*": ["./src/page_object/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@helper/*": ["./src/utils/helper.ts"],
+    },
+  },
+}
