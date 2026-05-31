@@ -1,4 +1,6 @@
-import CustomReporter from "./custom_report/custom_report";
+// lt.conf.ts
+// @ts-ignore
+import CustomReporter = require("./custom_report/custom_report");
 
 exports.config = {
   user: process.env.LT_USERNAME,
@@ -48,11 +50,12 @@ exports.config = {
     profile: [],
     strict: false,
     tags: [],
-    source: false,
     tagExpression: "",
     ignoreUndefinedDefinitions: false
   },
+  
   logLevel: 'warn',
+  
   reporters: [
     ["spec",
       {
@@ -61,13 +64,20 @@ exports.config = {
         addConsoleLogs: false,
       },
     ],
-
     [
       CustomReporter,
       {
         stdout: true,
       },
-    ]
+    ],
+   
+    ["allure", {
+      outputDir: "allure-results",
+      disableWebdriverStepsReporting: false,
+      disableWebdriverScreenshotsReporting: false,
+      disableMochaHooks: true,
+      addConsoleLogs: true,
+    }]
   ],
 
   waitforTimeout: 10000,

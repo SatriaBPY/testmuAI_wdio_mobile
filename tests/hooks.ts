@@ -40,7 +40,7 @@ Before({ tags: '@reset', timeout: 15000 }, async () => {
         console.log('✓ App restarted successfully');
         
     } catch (error) {
-        console.error('❌ Failed to reset app:', error);
+        console.error('❌ Failed to reset app:');
         
         console.log('Trying fallback method...');
         await driver.terminateApp(APP_PACKAGE);
