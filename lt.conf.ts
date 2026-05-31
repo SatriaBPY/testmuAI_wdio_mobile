@@ -1,6 +1,5 @@
-// lt.conf.ts
-// @ts-ignore
-import CustomReporter = require("./custom_report/custom_report");
+
+import CustomReporter from "./custom_report/custom_report";
 
 exports.config = {
   user: process.env.LT_USERNAME,
