@@ -8,6 +8,10 @@
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
+    "allowJs": true,
+    "checkJs": false,
+    "noImplicitAny": false,
+    "noEmit": true,
     "paths": {
       "@pages/*": ["./src/page_object/*"],
       "@utils/*": ["./src/utils/*"],
