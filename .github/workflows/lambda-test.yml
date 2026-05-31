@@ -1,60 +1,88 @@
-name: Tools Shoop - TestmuAI
+name: Tools Shop - TestmuAI
 
 on: 
-   workflow_dispatch:
-      inputs:
-         branch:
-           required: true
-      trigger_id:
-           required: true
+  workflow_dispatch:
+    inputs:
+      branch:
+        description: 'Branch to test'
+        required: true
+        default: 'main'
+        type: string
+      
 
 jobs:
-   run-tests:
-      name: Run - ${{ github.event.inputs.branch }}
-      runs-on: ubuntu-latest
+  run-tests:
+    name: Run - ${{ github.event.inputs.branch }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
 
-      steps:
-         - name: Checkout Repository
-           uses: actions/checkout@v4
-           with:
-              ref: ${{ github.event.inputs.branch }}
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.inputs.branch }}
 
-         - name: Prepare Allure Folder
-           run: mkdir -p allure-results
+      - name: Prepare Allure Folder
+        run: mkdir -p allure-results
 
-         - name: Pull Docker Image
-           run: docker pull sbpy/lambda-test:latest
+      - name: Pull Docker Image
+        run: docker pull sbpy/lambda-test:latest
 
-         - name: Verify LambdaTest credentials
-           env:
-              LT_USERNAME: ${{ secrets.LT_USERNAME }}
-              LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
-           run: |
-                  if [ -z "$LT_USERNAME" ]; then echo "Missing LT_USERNAME"; exit 1; fi
-                  if [ -z "$LT_ACCESS_KEY" ]; then echo "Missing LT_ACCESS_KEY"; exit 1; fi
-                  echo "✅ LambdaTest credentials configured"
+      - name: Verify LambdaTest credentials
+        env:
+          LT_USERNAME: ${{ secrets.LT_USERNAME }}
+          LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
+        run: |
+          if [ -z "$LT_USERNAME" ]; then 
+            echo "❌ Missing LT_USERNAME"
+            exit 1
+          fi
+          if [ -z "$LT_ACCESS_KEY" ]; then 
+            echo "❌ Missing LT_ACCESS_KEY"
+            exit 1
+          fi
+          echo "✅ LambdaTest credentials configured"
 
-         - name: Run Tests WDIO 
-           run: |
-               docker run --rm \
-                 -v ${{ github.workspace }}:/app \
-                 -w /app \
-                 sbpy/lambda-test:latest  \
-                 sh -c "
-                  npm install 
-                  && npm run lt
-                 "
+     
+      - name: Run Tests WDIO
+        run: |
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            -w /app \
+            -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+            -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+            sbpy/lambda-test:latest \
+            npm run lt
 
-         - name: Upload Allure Results
-           uses: actions/upload-artifact@v4
-           with:
-              name: allure-results-${{ github.run_id}}-${{ github.run_attempt}}
-              path: allure-results/
+     
+      # - name: Run Tests WDIO (with install)
+      #   if: false  
+      #   run: |
+      #     docker run --rm \
+      #       -v ${{ github.workspace }}:/app \
+      #       -w /app \
+      #       -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+      #       -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+      #       sbpy/lambda-test:latest \
+      #       sh -c "npm ci --no-audit --no-fund && npm run lt"
 
-         - name: Test status
-           run: |
-              if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
-                echo "✅ Tests completed with results"
-              else
-                echo "⚠️ No test results found"
-              fi
+      - name: Upload Allure Results
+        if: always() 
+        uses: actions/upload-artifact@v4
+        with:
+          name: allure-results-${{ github.run_id }}-${{ github.run_attempt }}
+          path: |
+            allure-results/
+            logs/  # Upload logs juga jika ada
+          retention-days: 7
+
+      - name: Test status
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
+            echo "✅ Tests completed with results"
+            echo "📊 Results count: $(ls -1 allure-results/*.json 2>/dev/null | wc -l)"
+          else
+            echo "⚠️ No test results found"
+            exit 1
+          fi
