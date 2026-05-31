@@ -52,8 +52,7 @@ jobs:
             -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
             -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
             sbpy/lambda-test:latest \
-            npm run lt
-
+            sh -c "npm install && npm run lt"
      
       # - name: Run Tests WDIO (with install)
       #   if: false  
