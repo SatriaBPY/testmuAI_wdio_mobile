@@ -193,13 +193,11 @@ pipeline {
             steps {
                 script {
                     echo "📊 Publishing Allure report..."
-                    allure([
+                    allure commandline: 'allure-cli',
                         includeProperties: false,
                         jdk: '',
-                        properties: [],
-                        reportBuildPolicy: 'ALWAYS',
+                        resultPolicy: 'LEAVE_AS_IS',
                         results: [[path: 'allure-results']]
-                    ])
                     echo "✅ Allure report published"
                 }
             }
