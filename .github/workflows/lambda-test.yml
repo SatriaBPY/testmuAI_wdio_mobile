@@ -1,13 +1,30 @@
 name: Tools Shop - TestmuAI
 
 on: 
+
+  pull_request:
+    types: 
+      - opened
+      - synchronize
+      - reopened
+
+  
   workflow_dispatch:
     inputs:
-      branch:
-        description: 'Branch to test'
+      # branch:
+      #   description: 'Branch to test'
+      #   required: true
+      #   default: 'main'
+      #   type: string
+      # 
+      ENV:
+        description: 'Environment to test'
         required: true
-        default: 'main'
-        type: string
+        type: choice
+        options:
+          - Local
+          - Lambda
+        default: 'Local'
       
 
 jobs:
@@ -45,14 +62,29 @@ jobs:
 
      
       - name: Run Tests WDIO
+        env:
+          ENV: ${{ github.event.inputs.ENV }}
+        shell: bash
         run: |
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            -w /app \
-            -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
-            -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
-            sbpy/lambda-test:latest \
-            sh -c "npm install && npm run lt"
+          if [ "$ENV" == "Local" ]; then
+            echo "Running tests locally"
+            docker run --rm \
+              -v ${{ github.workspace }}:/app \
+              -w /app \
+              -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+              -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+              sbpy/lambda-test:latest \
+              sh -c "npm install && npm run wdio"
+          else
+            echo "Running tests on LambdaTest"
+            docker run --rm \
+              -v ${{ github.workspace }}:/app \
+              -w /app \
+              -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+              -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+              sbpy/lambda-test:latest \
+              sh -c "npm install && npm run lt"
+          fi
      
       # - name: Run Tests WDIO (with install)
       #   if: false  
