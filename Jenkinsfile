@@ -170,7 +170,7 @@ pipeline {
                         echo "Downloading artifact..."
                         curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" \\
                             -o allure.zip \\
-                            "${GITHUB_API_URL}/actions/artifacts/\${ARTIFACT_ID}/zip"
+                            "${GITHUB_API_URL}/actions/artifacts/\${ARTIFACT_ID}"
                         
                         if [ ! -f allure.zip ]; then
                             echo "Error: Failed to download allure.zip"
