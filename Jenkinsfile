@@ -19,17 +19,18 @@ pipeline {
         stage('Get Latest Run Build Number') {
             steps {
                 script {
-                    def beforeRunNumber = sh(
-                        script: """
-                            curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
-                            "${GITHUB_API_URL}/actions/workflows/lambda-test.yml/runs?per_page=1" \
-                            | jq -r '.workflow_runs[0].run_number // 0'
-                        """,
-                        returnStdout: true
-                    ).trim()
-    
-                    env.BEFORE_RUN_NUMBER = beforeRunNumber
-                    echo "Before run number: ${beforeRunNumber}"
+                    withCredentials([string(credentialsId: 'github-token-actions', variable: 'GITHUB_TOKEN_SECRET')]) {
+                        def beforeRunNumber = sh(
+                            script: """
+                                curl -s -H "Authorization: Bearer $GITHUB_TOKEN" \
+                                "${GITHUB_API_URL}/actions/workflows/lambda-test.yml/runs?per_page=1" \
+                                | jq -r '.workflow_runs[0].run_number // 0'
+                            """,
+                            returnStdout: true
+                        ).trim()
+        
+                        env.BEFORE_RUN_NUMBER = beforeRunNumber
+                        echo "Before run number: ${beforeRunNumber}"
                 }
             }
         }
