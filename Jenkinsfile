@@ -64,26 +64,22 @@ pipeline {
                     echo "Waiting for workflow to complete..."
                     def runId = null
                     
+                    // Mencari run ID yang baru
                     for (int i = 0; i < 60; i++) {
-                        
-                        def response = sh(
+                        // Menggunakan jq langsung tanpa parsing Groovy
+                        def newRunId = sh(
                             script: """
                                 curl -s -H "Authorization: Bearer ${GITHUB_TOKEN}" \
-                                "${GITHUB_API_URL}/actions/workflows/lambda-test.yml/runs?event=workflow_dispatch&per_page=5"
+                                "${GITHUB_API_URL}/actions/workflows/lambda-test.yml/runs?event=workflow_dispatch&per_page=10" \
+                                | jq --arg before "${env.BEFORE_RUN_NUMBER}" '.workflow_runs[] | select(.run_number > (\$before | tonumber)) | .id' \
+                                | head -1
                             """,
                             returnStdout: true
                         ).trim()
                         
-                        
-                        def json = new groovy.json.JsonSlurper().parseText(response)
-                        def beforeNum = env.BEFORE_RUN_NUMBER as Integer
-                        
-                        
-                        def newRun = json.workflow_runs.find { it.run_number > beforeNum }
-                        
-                        if (newRun != null) {
-                            runId = newRun.id.toString()
-                            echo "Found new run ID: ${runId} (Run Number: ${newRun.run_number})"
+                        if (newRunId && newRunId != "null" && newRunId != "") {
+                            runId = newRunId
+                            echo "Found new run ID: ${runId}"
                             break
                         }
                         
@@ -97,6 +93,7 @@ pipeline {
                     
                     env.GITHUB_RUN_ID = runId
                     
+                    // Menunggu workflow selesai
                     for (int i = 0; i < 90; i++) {
                         def result = sh(
                             script: """
