@@ -170,7 +170,7 @@ pipeline {
                         echo "Downloading artifact..."
                         curl -L -H "Authorization: Bearer ${GITHUB_TOKEN}" \\
                             -o allure.zip \\
-                            "${GITHUB_API_URL}/actions/artifacts/\${ARTIFACT_ID}"
+                            "${GITHUB_API_URL}/actions/artifacts/\${ARTIFACT_ID}/zip"
                         
                         if [ ! -f allure.zip ]; then
                             echo "Error: Failed to download allure.zip"
@@ -181,8 +181,7 @@ pipeline {
                         unzip -o allure.zip -d allure-results/
                         rm -f allure.zip
                         
-                        echo "Success! Extracted \$(find allure-results -type f | wc -l) files"
-                        echo "Sample files:"
+                        echo "Success! Total files in allure-results: \$(ls allure-results/ | wc -l)"
                         ls allure-results/ | head -n 10
                     """
                 }
