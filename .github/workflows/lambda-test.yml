@@ -25,6 +25,25 @@ jobs:
     timeout-minutes: 30
 
     steps:
+      - name: Enable KVM
+        run: |
+          echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
+          sudo udevadm control --reload-rules
+          sudo udevadm trigger --name-match=kvm
+
+      - name: run tests
+        uses: reactivecircus/android-emulator-runner@v2
+        with:
+          api-level: 34
+          system-image-api-level: 34-ext9
+          target: android-automotive
+          script: ./gradlew connectedCheck
+
+      - name: Download APK
+        run: |
+            curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o app-debug.apk
+            ls -lh app-debug.apk
+
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:

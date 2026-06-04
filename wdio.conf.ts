@@ -19,14 +19,24 @@ export const config: WebdriverIO.Config = {
   maxInstancesPerCapability: 1,
 
   capabilities: [
+    // {
+    //   platformName: "Android",
+    //   "appium:automationName": "UiAutomator2",
+    //   "appium:udid": "4x69v4toz5torglr",
+    //   "appium:appPackage": "io.testsmith.practicesoftwaretesting",
+    //   "appium:appActivity": "io.testsmith.practicesoftwaretesting.MainActivity",
+    //   "appium:noReset": false,
+    // },
     {
-      platformName: "Android",
-      "appium:automationName": "UiAutomator2",
-      "appium:udid": "4x69v4toz5torglr",
-      "appium:appPackage": "io.testsmith.practicesoftwaretesting",
-      "appium:appActivity": "io.testsmith.practicesoftwaretesting.MainActivity",
-      "appium:noReset": false,
-    },
+        platformName: "Android",
+        "appium:automationName": "UiAutomator2",
+        "appium:deviceName": "Android Emulator",
+        "appium:platformVersion": "14.0",
+        "appium:app": "./app-debug.apk",
+        "appium:appPackage": "io.testsmith.practicesoftwaretesting",
+        "appium:appActivity": "io.testsmith.practicesoftwaretesting.MainActivity",
+        "appium:noReset": false,
+      },
   ],
 
   // Level of logging verbosity: trace | debug | info | warn | error | silent
