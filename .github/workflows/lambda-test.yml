@@ -45,7 +45,7 @@ jobs:
           arch: x86_64
           disable-animations: true
           emulator-options: "-no-snapshot -noaudio -no-window"
-          script: npm run wdio      
+     
       
 
       - name: Prepare Allure Folder
