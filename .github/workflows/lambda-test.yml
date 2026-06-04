@@ -25,6 +25,12 @@ jobs:
     timeout-minutes: 30
 
     steps:
+
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_name }}
+          
       - name: Enable KVM
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
@@ -47,10 +53,7 @@ jobs:
             curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o app-debug.apk
             ls -lh app-debug.apk
 
-      - name: Checkout Repository
-        uses: actions/checkout@v4
-        with:
-          ref: ${{ github.ref_name }}
+      
 
       - name: Prepare Allure Folder
         run: mkdir -p allure-results
