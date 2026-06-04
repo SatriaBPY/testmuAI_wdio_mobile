@@ -81,11 +81,18 @@ jobs:
           echo "ENV=$ENV"
           if [ "$ENV" = "Local" ]; then
             echo "Running tests locally"
+            adb wait-for-device
+            adb shell input keyevent 82
+            adb install app-debug.apk
+            
             docker run --rm \
               -v ${{ github.workspace }}:/app \
               -w /app \
               sbpy/lambda-test:latest \
-              sh -c "npm install && npm run wdio"
+              sh -c "
+                npm install && \
+                npx appium driver install uiautomator2 && \
+                npm run wdio"
           else
             echo "Running tests on LambdaTest"
             docker run --rm \
