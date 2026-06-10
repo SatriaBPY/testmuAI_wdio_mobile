@@ -6,7 +6,6 @@ on:
       - opened
       - synchronize
       - reopened
-
   workflow_dispatch:
     inputs:
       ENV:
@@ -21,17 +20,16 @@ on:
 jobs:
   run-tests:
     name: Run - ${{ github.ref_name }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04  
     timeout-minutes: 30
 
     steps:
-
       - name: Checkout Repository
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
           
-      - name: Enable KVM
+      - name: Enable KVM Group Permissions
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
@@ -42,67 +40,115 @@ jobs:
           curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o app-debug.apk
           ls -lh app-debug.apk
 
-      - name: Launch Emulator (No gradlew needed)
+      - name: Prepare Allure Folder
+        run: mkdir -p allure-results logs
+
+      - name: Start Emulator & Run Tests
+        if: github.event.inputs.ENV == 'Local' || github.event.inputs.ENV == ''
         uses: reactivecircus/android-emulator-runner@v2
         with:
           api-level: 34
           target: google_apis
           arch: x86_64
+          profile: pixel_6
           disable-animations: true
-          emulator-options: "-no-snapshot -noaudio -no-window"
-          script: echo "Emulator is ready for testing"
+          emulator-options: "-no-snapshot -noaudio -no-window -gpu swiftshader_indirect"
+          script: |
+            echo "📱 Emulator ready, setting up environment..."
+            
+            # Grant permissions
+            adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
+            adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
+            adb shell settings put global hide_error_dialogs 1 || true
+            
+            # Buat script untuk dijalankan di dalam Docker
+            cat > /tmp/run-tests.sh << 'EOF'
+            #!/bin/bash
+            set -e
+            
+            echo "🐳 Inside Docker container"
+            echo "📦 Installing Appium & dependencies..."
+            
+            # Install Appium dan driver
+            npm install -g appium@2.19
+            appium driver install uiautomator2
+            appium driver install xcuitest
+            
+            echo "📱 Connecting to emulator..."
+            # Konek ke ADB server di host
+            adb connect host.docker.internal:5555 || true
+            adb devices
+            
+            # Install APK
+            adb install -r /app/app-debug.apk
+            
+            # Start Appium
+            echo "🚀 Starting Appium server..."
+            appium --allow-insecure adb_shell &
+            
+            # Wait for Appium
+            for i in {1..30}; do
+              if curl -sf http://127.0.0.1:4723/status > /dev/null; then
+                echo "✅ Appium ready"
+                break
+              fi
+              echo "Waiting for Appium... ($i/30)"
+              sleep 1
+            done
+            
+            # Run tests
+            echo "🧪 Running WDIO tests..."
+            cd /app
+            CI=true \
+            DEVICE_COUNT=1 \
+            DEVICE_0_UDID=emulator-5554 \
+            DEVICE_0_PLATFORM=android \
+            DEVICE_0_NAME="Pixel 6" \
+            npm run wdio
+            
+            # Copy results
+            cp -r allure-results /app/allure-results 2>/dev/null || true
+            cp -r logs /app/logs 2>/dev/null || true
+            
+            echo "✅ Tests completed"
+            EOF
+            
+            chmod +x /tmp/run-tests.sh
+            
+            # Jalankan Docker dengan akses ke host
+            docker run --rm \
+              --network host \
+              -v ${{ github.workspace }}:/app \
+              -v /tmp:/tmp \
+              -v /dev/kvm:/dev/kvm \
+              --privileged \
+              sbpy/lambda-test:latest \
+              bash /tmp/run-tests.sh
 
-      - name: Prepare Allure Folder
-        run: mkdir -p allure-results
-
-      - name: Pull Docker Image
-        run: docker pull sbpy/lambda-test:latest
-
-      - name: Verify LambdaTest credentials
+      - name: Run Tests on LambdaTest
+        if: github.event.inputs.ENV == 'Lambda'
         env:
           LT_USERNAME: ${{ secrets.LT_USERNAME }}
           LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
         run: |
-          if [ -z "$LT_USERNAME" ]; then 
-            echo "❌ Missing LT_USERNAME"
+          if [ -z "$LT_USERNAME" ] || [ -z "$LT_ACCESS_KEY" ]; then 
+            echo "❌ Missing LambdaTest credentials"
             exit 1
           fi
-          if [ -z "$LT_ACCESS_KEY" ]; then 
-            echo "❌ Missing LT_ACCESS_KEY"
-            exit 1
-          fi
-          echo "✅ LambdaTest credentials configured"
-
-      - name: Run Tests WDIO
-        env:
-          ENV: ${{ github.event.inputs.ENV || 'Local' }}
-        shell: bash
-        run: |
-          echo "ENV=$ENV"
-          if [ "$ENV" = "Local" ]; then
-            echo "Running tests locally"
-            adb wait-for-device
-            adb shell input keyevent 82
-            adb install app-debug.apk
-            
-            docker run --rm \
-              -v ${{ github.workspace }}:/app \
-              -w /app \
-              sbpy/lambda-test:latest \
-              sh -c "
-                npm install && \
-                npx appium driver install uiautomator2 && \
-                npm run wdio"
-          else
-            echo "Running tests on LambdaTest"
-            docker run --rm \
-              -v ${{ github.workspace }}:/app \
-              -w /app \
-              -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
-              -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
-              sbpy/lambda-test:latest \
-              sh -c "npm install && npm run lt"
-          fi
+          
+          # Untuk LambdaTest, install Appium juga (tapi biasanya pake grid mereka)
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            -w /app \
+            -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+            -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+            sbpy/lambda-test:latest \
+            sh -c "
+              npm install -g appium@2.19 && \
+              appium driver install uiautomator2 && \
+              npm install && \
+              npm run lt
+            "
 
       - name: Upload Allure Results
         if: always()
@@ -114,13 +160,12 @@ jobs:
             logs/
           retention-days: 7
 
-      - name: Test status
+      - name: Upload Test Artifacts
         if: always()
-        run: |
-          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
-            echo "✅ Tests completed with results"
-            echo "📊 Results count: $(ls -1 allure-results/*.json 2>/dev/null | wc -l)"
-          else
-            echo "⚠️ No test results found"
-            exit 1
-          fi
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-artifacts-${{ github.run_id }}
+          path: |
+            test-results/
+            error-screenshots/
+          retention-days: 7
