@@ -53,7 +53,8 @@ jobs:
       - name: Install Appium Globally
         run: |
           npm install -g appium@2.0.0
-          appium driver install uiautomator2@2.39.1
+          appium driver install uiautomator2@2.43.0
+        
 
       - name: Start Appium Server
         run: appium --allow-insecure adb_shell &
