@@ -32,18 +32,21 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '18'
+          node-version: '20'  # Node 20 untuk ESM support
           cache: 'npm'
 
       - name: Install Dependencies
         run: npm install
 
+      - name: Install Appium 2.11.3 (same as successful source)
+        run: |
+          npm install appium@2.11.3 appium-uiautomator2-driver@4.0.0 --save-dev
+          
       - name: Download APK
         run: |
           mkdir -p apps
           curl -L "https://testsmith.ams3.cdn.digitaloceanspaces.com/artifacts/practice-software-testing.apk" -o apps/app-debug.apk
           ls -lh apps/app-debug.apk
-          file apps/app-debug.apk
 
       - name: Enable KVM group perms
         run: |
@@ -52,7 +55,8 @@ jobs:
           sudo udevadm trigger --name-match=kvm
 
       - name: Start Appium Server
-        run: npx appium --allow-insecure adb_shell &
+        run: |
+          npx appium --allow-insecure adb_shell &
         env:
           APPIUM_HOME: ${{ github.workspace }}
 
@@ -72,35 +76,13 @@ jobs:
           disable-animations: true
           emulator-options: "-no-snapshot -noaudio -no-window -gpu swiftshader_indirect"
           script: |
-            echo "📱 Installing APK..."
             adb install apps/app-debug.apk
-            
-            echo "🔧 Granting permissions..."
             adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
             adb shell settings put global hide_error_dialogs 1 || true
             adb shell input keyevent 82
-            
-            echo "⏳ Waiting for Appium server..."
-            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
-              if curl -sf http://127.0.0.1:4723/status > /dev/null 2>&1; then
-                echo "✅ Appium server is ready (attempt $i)"
-                break
-              fi
-              echo "Attempt $i/30 - Waiting for Appium..."
-              sleep 1
-            done
-            
-            echo "🧪 Running WDIO tests..."
-            CI=true \
-            DEVICE_COUNT=1 \
-            DEVICE_0_UDID=emulator-5554 \
-            DEVICE_0_NAME="Pixel 6" \
-            DEVICE_0_PLATFORM=android \
-            DEVICE_0_SYSTEM_PORT=8200 \
-            DEVICE_0_CHROMEDRIVER_PORT=9515 \
-            DEVICE_0_SETTLE_PAUSE=2500 \
-            npm run wdio
+            sleep 5
+            CI=true DEVICE_COUNT=1 DEVICE_0_UDID=emulator-5554 DEVICE_0_NAME="Pixel 6" DEVICE_0_PLATFORM=android DEVICE_0_SYSTEM_PORT=8200 DEVICE_0_CHROMEDRIVER_PORT=9515 DEVICE_0_SETTLE_PAUSE=2500 npm run wdio
 
       - name: Upload Allure Results
         if: always()
