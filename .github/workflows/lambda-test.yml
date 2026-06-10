@@ -43,7 +43,7 @@ jobs:
           mkdir -p apps
           curl -L "https://testsmith.ams3.cdn.digitaloceanspaces.com/artifacts/practice-software-testing.apk" -o apps/app-debug.apk
           ls -lh apps/app-debug.apk
-          file apps/app-debug.apk # Verifikasi tipe file
+          file apps/app-debug.apk
 
       - name: Enable KVM group perms
         run: |
@@ -51,22 +51,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Install Appium Globally
-        run: |
-          npm install -g appium@2.0.0
-          appium driver install uiautomator2@2.43.0
-        
-
       - name: Start Appium Server
-        run: appium --allow-insecure adb_shell &
+        run: npx appium --allow-insecure adb_shell &
         env:
           APPIUM_HOME: ${{ github.workspace }}
 
       - name: Prepare Allure Folder
         run: mkdir -p allure-results logs
-
-      - name: Pull Docker Image (for LambdaTest)
-        run: docker pull sbpy/lambda-test:latest
 
       - name: Run Android Tests on Emulator
         if: github.event.inputs.ENV == 'Local' || github.event.inputs.ENV == ''
@@ -81,30 +72,25 @@ jobs:
           disable-animations: true
           emulator-options: "-no-snapshot -noaudio -no-window -gpu swiftshader_indirect"
           script: |
-            # Install APK
+            echo "📱 Installing APK..."
             adb install apps/app-debug.apk
             
-            # Grant location permissions
+            echo "🔧 Granting permissions..."
             adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
-            
-            # Hide error dialogs
             adb shell settings put global hide_error_dialogs 1 || true
-            
-            # Unlock screen
             adb shell input keyevent 82
             
-            # Wait for Appium ready
-            for i in {1..30}; do
-              if curl -sf http://127.0.0.1:4723/status > /dev/null; then
-                echo "✅ Appium server ready"
+            echo "⏳ Waiting for Appium server..."
+            for i in 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 17 18 19 20 21 22 23 24 25 26 27 28 29 30; do
+              if curl -sf http://127.0.0.1:4723/status > /dev/null 2>&1; then
+                echo "✅ Appium server is ready (attempt $i)"
                 break
               fi
-              echo "Waiting for Appium... ($i/30)"
+              echo "Attempt $i/30 - Waiting for Appium..."
               sleep 1
             done
             
-            # Run WDIO tests
             echo "🧪 Running WDIO tests..."
             CI=true \
             DEVICE_COUNT=1 \
@@ -116,26 +102,6 @@ jobs:
             DEVICE_0_SETTLE_PAUSE=2500 \
             npm run wdio
 
-      - name: Run Tests on LambdaTest
-        if: github.event.inputs.ENV == 'Lambda'
-        env:
-          LT_USERNAME: ${{ secrets.LT_USERNAME }}
-          LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
-        run: |
-          if [ -z "$LT_USERNAME" ] || [ -z "$LT_ACCESS_KEY" ]; then 
-            echo "❌ Missing LambdaTest credentials"
-            exit 1
-          fi
-          
-          echo "Running tests on LambdaTest"
-          docker run --rm \
-            -v ${{ github.workspace }}:/app \
-            -w /app \
-            -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
-            -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
-            sbpy/lambda-test:latest \
-            sh -c "npm run lt"
-
       - name: Upload Allure Results
         if: always()
         uses: actions/upload-artifact@v4
@@ -145,23 +111,3 @@ jobs:
             allure-results/
             logs/
           retention-days: 7
-
-      - name: Upload Test Artifacts
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: test-results-${{ github.run_id }}
-          path: |
-            test-results/
-            error-screenshots/
-          retention-days: 7
-
-      - name: Test status
-        if: always()
-        run: |
-          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
-            echo "✅ Tests completed with results"
-            echo "📊 Results count: $(find allure-results -name '*.json' | wc -l)"
-          else
-            echo "⚠️ No test results found"
-          fi
