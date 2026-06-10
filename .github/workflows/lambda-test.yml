@@ -20,7 +20,7 @@ on:
 jobs:
   run-tests:
     name: Run - ${{ github.ref_name }}
-    runs-on: ubuntu-22.04  
+    runs-on: ubuntu-22.04
     timeout-minutes: 30
 
     steps:
@@ -29,23 +29,43 @@ jobs:
         with:
           ref: ${{ github.ref_name }}
           
-      - name: Enable KVM Group Permissions
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm'
+
+      - name: Install Dependencies
+        run: npm install
+
+      - name: Download APK
+        run: |
+          mkdir -p apps
+          curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o apps/app-debug.apk
+          ls -lh apps/app-debug.apk
+
+      - name: Enable KVM group perms
         run: |
           echo 'KERNEL=="kvm", GROUP="kvm", MODE="0666", OPTIONS+="static_node=kvm"' | sudo tee /etc/udev/rules.d/99-kvm4all.rules
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
-      - name: Download APK
-        run: |
-          curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o app-debug.apk
-          ls -lh app-debug.apk
+      - name: Start Appium Server
+        run: npx appium --allow-insecure adb_shell &
+        env:
+          APPIUM_HOME: ${{ github.workspace }}
 
       - name: Prepare Allure Folder
         run: mkdir -p allure-results logs
 
-      - name: Start Emulator & Run Tests
+      - name: Pull Docker Image (for LambdaTest)
+        run: docker pull sbpy/lambda-test:latest
+
+      - name: Run Android Tests on Emulator
         if: github.event.inputs.ENV == 'Local' || github.event.inputs.ENV == ''
         uses: reactivecircus/android-emulator-runner@v2
+        env:
+          APPIUM_HOME: ${{ github.workspace }}
         with:
           api-level: 34
           target: google_apis
@@ -54,76 +74,40 @@ jobs:
           disable-animations: true
           emulator-options: "-no-snapshot -noaudio -no-window -gpu swiftshader_indirect"
           script: |
-            echo "📱 Emulator ready, setting up environment..."
+            # Install APK
+            adb install apps/app-debug.apk
             
-            # Grant permissions
+            # Grant location permissions untuk Appium settings
             adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
+            
+            # Hide error dialogs (mencegah ANR overlay)
             adb shell settings put global hide_error_dialogs 1 || true
             
-            # Buat script untuk dijalankan di dalam Docker
-            cat > /tmp/run-tests.sh << 'EOF'
-            #!/bin/bash
-            set -e
+            # Unlock screen
+            adb shell input keyevent 82
             
-            echo "🐳 Inside Docker container"
-            echo "📦 Installing Appium & dependencies..."
-            
-            # Install Appium dan driver
-            npm install -g appium@2.19
-            appium driver install uiautomator2
-            appium driver install xcuitest
-            
-            echo "📱 Connecting to emulator..."
-            # Konek ke ADB server di host
-            adb connect host.docker.internal:5555 || true
-            adb devices
-            
-            # Install APK
-            adb install -r /app/app-debug.apk
-            
-            # Start Appium
-            echo "🚀 Starting Appium server..."
-            appium --allow-insecure adb_shell &
-            
-            # Wait for Appium
+            # Wait for Appium ready (dari host)
             for i in {1..30}; do
               if curl -sf http://127.0.0.1:4723/status > /dev/null; then
-                echo "✅ Appium ready"
+                echo "✅ Appium server ready"
                 break
               fi
               echo "Waiting for Appium... ($i/30)"
               sleep 1
             done
             
-            # Run tests
+            # Run WDIO tests dengan environment variables
             echo "🧪 Running WDIO tests..."
-            cd /app
             CI=true \
             DEVICE_COUNT=1 \
             DEVICE_0_UDID=emulator-5554 \
-            DEVICE_0_PLATFORM=android \
             DEVICE_0_NAME="Pixel 6" \
+            DEVICE_0_PLATFORM=android \
+            DEVICE_0_SYSTEM_PORT=8200 \
+            DEVICE_0_CHROMEDRIVER_PORT=9515 \
+            DEVICE_0_SETTLE_PAUSE=2500 \
             npm run wdio
-            
-            # Copy results
-            cp -r allure-results /app/allure-results 2>/dev/null || true
-            cp -r logs /app/logs 2>/dev/null || true
-            
-            echo "✅ Tests completed"
-            EOF
-            
-            chmod +x /tmp/run-tests.sh
-            
-            # Jalankan Docker dengan akses ke host
-            docker run --rm \
-              --network host \
-              -v ${{ github.workspace }}:/app \
-              -v /tmp:/tmp \
-              -v /dev/kvm:/dev/kvm \
-              --privileged \
-              sbpy/lambda-test:latest \
-              bash /tmp/run-tests.sh
 
       - name: Run Tests on LambdaTest
         if: github.event.inputs.ENV == 'Lambda'
@@ -136,19 +120,14 @@ jobs:
             exit 1
           fi
           
-          # Untuk LambdaTest, install Appium juga (tapi biasanya pake grid mereka)
+          echo "Running tests on LambdaTest"
           docker run --rm \
             -v ${{ github.workspace }}:/app \
             -w /app \
             -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
             -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
             sbpy/lambda-test:latest \
-            sh -c "
-              npm install -g appium@2.19 && \
-              appium driver install uiautomator2 && \
-              npm install && \
-              npm run lt
-            "
+            sh -c "npm run lt"
 
       - name: Upload Allure Results
         if: always()
@@ -164,8 +143,18 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: test-artifacts-${{ github.run_id }}
+          name: test-results-${{ github.run_id }}
           path: |
             test-results/
             error-screenshots/
           retention-days: 7
+
+      - name: Test status
+        if: always()
+        run: |
+          if [ -d "allure-results" ] && [ "$(ls -A allure-results)" ]; then
+            echo "✅ Tests completed with results"
+            echo "📊 Results count: $(find allure-results -name '*.json' | wc -l)"
+          else
+            echo "⚠️ No test results found"
+          fi
