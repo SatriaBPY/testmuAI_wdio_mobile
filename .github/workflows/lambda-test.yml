@@ -50,8 +50,13 @@ jobs:
           sudo udevadm control --reload-rules
           sudo udevadm trigger --name-match=kvm
 
+      - name: Install Appium Globally
+        run: |
+          npm install -g appium@2.0.0
+          appium driver install uiautomator2@2.39.1
+
       - name: Start Appium Server
-        run: npx appium --allow-insecure adb_shell &
+        run: appium --allow-insecure adb_shell &
         env:
           APPIUM_HOME: ${{ github.workspace }}
 
@@ -77,17 +82,17 @@ jobs:
             # Install APK
             adb install apps/app-debug.apk
             
-            # Grant location permissions untuk Appium settings
+            # Grant location permissions
             adb shell pm grant io.appium.settings android.permission.ACCESS_FINE_LOCATION || true
             adb shell pm grant io.appium.settings android.permission.ACCESS_COARSE_LOCATION || true
             
-            # Hide error dialogs (mencegah ANR overlay)
+            # Hide error dialogs
             adb shell settings put global hide_error_dialogs 1 || true
             
             # Unlock screen
             adb shell input keyevent 82
             
-            # Wait for Appium ready (dari host)
+            # Wait for Appium ready
             for i in {1..30}; do
               if curl -sf http://127.0.0.1:4723/status > /dev/null; then
                 echo "✅ Appium server ready"
@@ -97,7 +102,7 @@ jobs:
               sleep 1
             done
             
-            # Run WDIO tests dengan environment variables
+            # Run WDIO tests
             echo "🧪 Running WDIO tests..."
             CI=true \
             DEVICE_COUNT=1 \
