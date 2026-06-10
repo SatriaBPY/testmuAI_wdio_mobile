@@ -41,8 +41,9 @@ jobs:
       - name: Download APK
         run: |
           mkdir -p apps
-          curl -L "https://drive.google.com/uc?export=download&id=1ATlJF6_JOeo_QXoBvCwXld8K1rAOkxAi" -o apps/app-debug.apk
+          curl -L "https://testsmith.ams3.cdn.digitaloceanspaces.com/artifacts/practice-software-testing.apk" -o apps/app-debug.apk
           ls -lh apps/app-debug.apk
+          file apps/app-debug.apk # Verifikasi tipe file
 
       - name: Enable KVM group perms
         run: |
