@@ -28,7 +28,12 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.ref_name }}
-          
+
+      # Pull Lambda Test Docker Image
+      - name: Pull Lambda Test Docker Image
+        if: github.event.inputs.ENV == 'Lambda'
+        run: docker pull sbpy/lambda-test:latest
+
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -83,6 +88,22 @@ jobs:
             adb shell input keyevent 82
             sleep 5
             CI=true DEVICE_COUNT=1 DEVICE_0_UDID=emulator-5554 DEVICE_0_NAME="Pixel 6" DEVICE_0_PLATFORM=android DEVICE_0_SYSTEM_PORT=8200 DEVICE_0_CHROMEDRIVER_PORT=9515 DEVICE_0_SETTLE_PAUSE=2500 npm run wdio
+
+      # Run Tests on LambdaTest
+      - name: Run Tests on LambdaTest
+        if: github.event.inputs.ENV == 'Lambda'
+        env:
+          LT_USERNAME: ${{ secrets.LT_USERNAME }}
+          LT_ACCESS_KEY: ${{ secrets.LT_ACCESS_KEY }}
+        run: |
+          echo "Running tests on LambdaTest"
+          docker run --rm \
+            -v ${{ github.workspace }}:/app \
+            -w /app \
+            -e LT_USERNAME=${{ secrets.LT_USERNAME }} \
+            -e LT_ACCESS_KEY=${{ secrets.LT_ACCESS_KEY }} \
+            sbpy/lambda-test:latest \
+            sh -c "npm install && npm run lt"
 
       - name: Upload Allure Results
         if: always()
