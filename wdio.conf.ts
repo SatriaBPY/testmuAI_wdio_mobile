@@ -1,4 +1,6 @@
+import { browser } from "@wdio/globals";
 import CustomReporter from "./custom_report/custom_report";
+import allureReporter from "@wdio/allure-reporter";
 
 export const config: WebdriverIO.Config = {
   runner: "local",
@@ -276,8 +278,17 @@ export const config: WebdriverIO.Config = {
    * @param {number}             result.duration  duration of scenario in milliseconds
    * @param {object}             context          Cucumber World object
    */
-  // afterStep: function (step, scenario, result, context) {
-  // },
+  afterStep: async function (step, scenario, { passed, error, duration }) {
+    if (!passed) {
+      const pngScreenshot = await browser.takeScreenshot();
+
+      allureReporter.addAttachment(
+        `Screenshot Failure: ${step.text}`,
+        Buffer.from(pngScreenshot, "base64"),
+        "image/png",
+      );
+    }
+  },
   /**
    *
    * Runs after a Cucumber Scenario.
@@ -288,7 +299,10 @@ export const config: WebdriverIO.Config = {
    * @param {number}                 result.duration  duration of scenario in milliseconds
    * @param {object}                 context          Cucumber World object
    */
-  // afterScenario: function (world, result, context) {
+  // afterScenario: function (result) {
+  //   if (res) {
+  //     browser.saveScreenshot(`error-screenshots/${result.pickle.name}.png`);
+  //   }
   // },
   /**
    *
