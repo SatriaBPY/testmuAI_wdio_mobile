@@ -32,7 +32,7 @@ export const config: WebdriverIO.Config = {
       "appium:automationName": "UiAutomator2",
       "appium:deviceName": process.env.DEVICE_0_NAME || "Pixel 6",
       "appium:platformVersion": "14.0",
-      "appium:app": "./app-debug.apk",
+      "appium:app": "./apps/app-debug.apk",
       "appium:appPackage": "io.testsmith.practicesoftwaretesting",
       "appium:appActivity": "io.testsmith.practicesoftwaretesting.MainActivity",
       "appium:noReset": false,
